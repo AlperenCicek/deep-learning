@@ -1,51 +1,52 @@
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 import matplotlib.pyplot as plt
 import numpy as np
 
-mnist = input_data.read_data_sets("data/MNIST/", one_hot = True)
+mnist = input_data.read_data_sets("data/MNIST/", one_hot = True , reshape = False)
 
-x = tf.placeholder(tf.float32, [None, 784])
+x = tf.placeholder(tf.float32, [None, 28, 28, 1])
 y_true = tf.placeholder(tf.float32, [None, 10])
-pkeep = tf.placeholder(tf.float32)
-layer_1 = 128
-layer_2 = 64
-layer_3 = 32
-layer_out = 10
 
-weight_1 = tf.Variable(tf.truncated_normal([784, layer_1], stddev = 0.1))
-bias_1 = tf.Variable(tf.constant(0.1, shape = [layer_1]))
-weight_2 = tf.Variable(tf.truncated_normal([layer_1, layer_2], stddev = 0.1))
-bias_2 = tf.Variable(tf.constant(0.1, shape = [layer_2]))
-weight_3 = tf.Variable(tf.truncated_normal([layer_2, layer_3], stddev = 0.1))
-bias_3 = tf.Variable(tf.constant(0.1, shape = [layer_3]))
-weight_out = tf.Variable(tf.truncated_normal([layer_3, layer_out], stddev = 0.1))
-bias_out = tf.Variable(tf.constant(0.1, shape = [layer_out]))
-#DropoutInactive
-"""
-y1 = tf.nn.relu(tf.matmul(x, weight_1) + bias_1)
-y2 = tf.nn.relu(tf.matmul(y1, weight_2) + bias_2)
-y3 = tf.nn.relu(tf.matmul(y2, weight_3) + bias_3)
-logits = tf.matmul(y3, weight_out) + bias_out
-y4 = tf.nn.softmax(logits)
-"""
-#DropoutActive
-y1 = tf.nn.relu(tf.matmul(x, weight_1) + bias_1)
-y1d = tf.nn.dropout(y1, pkeep)
-y2 = tf.nn.relu(tf.matmul(y1d, weight_2) + bias_2)
-y2d = tf.nn.dropout(y2, pkeep)
-y3 = tf.nn.relu(tf.matmul(y2d, weight_3) + bias_3)
-y3d = tf.nn.dropout(y3, pkeep)
-logits = tf.matmul(y3d, weight_out) + bias_out
-y4 = tf.nn.softmax(logits)
+def conv_layer(input, size_in, size_out, use_pooling = True):
+    w = tf.Variable(tf.truncated_normal([3, 3, size_in, size_out], stddev = 0.1))
+    b = tf.Variable(tf.constant(0.1, shape = [size_out]))
+
+    conv = tf.nn.conv2d(input, w, strides = [1, 1, 1, 1], padding = 'SAME') + b
+    y = tf.nn.relu(conv)
+
+    if use_pooling:
+        y = tf.nn.max_pool(y, ksize = [1, 2, 2 ,1], strides = [1, 2, 2, 1], padding = 'SAME')
+
+    return y 
+
+def fc_layer(input, size_in, size_out, relu = True):
+    w = tf.Variable(tf.truncated_normal([size_in, size_out], stddev = 0.1))
+    b = tf.Variable(tf.constant(0.1, shape = [size_out]))
+    logits = tf.matmul(input, w) + b
+    
+    if relu:
+        logits = tf.nn.relu(logits)
+       
+    return logits
+
+#input = [28, 28, 1]
+conv1 = conv_layer(x, 1, 16, use_pooling = True)#output = [14, 14, 16]
+conv2 = conv_layer(conv1, 16, 32, use_pooling = True)#output = [7, 7, 32]
+
+flattened = tf.reshape(conv2, shape = [-1, 7 * 7 * 32])
+
+fc = fc_layer(flattened, 7 * 7 * 32, 256, relu = True)
+logits = fc_layer(fc, 256, 10, relu = False)
+y = tf.nn.softmax(logits)
 
 xent = tf.nn.softmax_cross_entropy_with_logits(logits = logits, labels = y_true)
 loss = tf.reduce_mean(xent)
 
-correct_prediction = tf.equal(tf.argmax(y4, 1), tf.argmax(y_true, 1))
+correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_true, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-optimize = tf.train.AdamOptimizer(0.001).minimize(loss)
+optimizer = tf.train.AdamOptimizer(5e-4).minimize(loss) #5e-4 -> 0.0005
 
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
@@ -56,11 +57,8 @@ loss_graph = []
 def training_step(iterations):
     for i in range(iterations):
         x_batch, y_batch = mnist.train.next_batch(batch_size)
-        #DropoutInactive
-        """feed_dict_train = {x: x_batch, y_true: y_batch}"""
-        #DropoutActive
-        feed_dict_train = {x: x_batch, y_true: y_batch, pkeep : 0.75}
-        [_, train_loss] = sess.run([optimize, loss], feed_dict = feed_dict_train)
+        feed_dict_train = {x: x_batch, y_true: y_batch}
+        [_, train_loss] = sess.run([optimizer, loss], feed_dict = feed_dict_train)
 
         loss_graph.append(train_loss)
         
@@ -68,10 +66,7 @@ def training_step(iterations):
             train_acc = sess.run(accuracy, feed_dict = feed_dict_train)
             print("Iterations: ", i, "Training accuracy: ", train_acc, "Training loss: ", train_loss)
 
-#DropoutInactive
-"""feed_dict_test = {x: mnist.test.images, y_true: mnist.test.labels}"""
-#DropoutActive
-feed_dict_test = {x: mnist.test.images, y_true: mnist.test.labels, pkeep : 0.75}
+feed_dict_test = {x: mnist.test.images, y_true: mnist.test.labels}
 
 def test_accuracy():
     acc = sess.run(accuracy, feed_dict = feed_dict_test)
@@ -92,13 +87,11 @@ def plot_images(images, cls_true, cls_pred=None):
         ax.set_xlabel(xlabel)
         ax.set_xticks([])
         ax.set_yticks([])
-
     plt.show()
-
 
 def plot_example_errors():
     mnist.test.cls = np.argmax(mnist.test.labels, axis=1)
-    y_pred_cls = tf.argmax(y4, 1)
+    y_pred_cls = tf.argmax(y, 1)
     correct, cls_pred = sess.run([correct_prediction, y_pred_cls], feed_dict=feed_dict_test)
     incorrect = (correct == False)
 
