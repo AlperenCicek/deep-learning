@@ -18,6 +18,17 @@ x = tf.placeholder(tf.float32, [None, 32, 32, 3]) # x = 32 y = 32 Channel = 3 (R
 y_true = tf.placeholder(tf.float32, [None, 10]) # Classes = 10
 pkeep = tf.placeholder(tf.float32)
 
+def pre_process_image(image):#Data Augmentation Part
+    image = tf.image.random_flip_left_right(image)
+    image = tf.image.random_hue(image, max_delta = 0.05)
+    image = tf.image.random_contrast(image, lower = 0.3, upper = 1.0)
+    image = tf.image.random_brightness(image, max_delta = 0.2)
+    image = tf.image.random_saturation(image, lower = 0.0, upper = 2.0)
+
+    image = tf.minimum(image, 1.0)
+    image = tf.maximum(image, 0.0)
+    return image
+
 def pre_process(images):
     images = tf.map_fn(lambda image: pre_process_image(image), images)
     return images
@@ -51,7 +62,8 @@ def fc_layer(input, size_in, size_out, relu = True, dropout = True):
         return logits
 
 #input = [32, 32, 3]
-conv1 = conv_layer(x, 3, 32, use_pooling = True) #output = [16, 16, 32] 
+#conv1 = conv_layer(x, 3, 32, use_pooling = True) #output = [16, 16, 32] #without Data Augmentation
+conv1 = conv_layer(distorted_images, 3, 32, use_pooling = True) #output = [16, 16, 32] #with Data Augmentation
 conv2 = conv_layer(conv1, 32, 64, use_pooling = True) #output = [8, 8, 64]
 conv3 = conv_layer(conv2, 64, 64, use_pooling = True) #output = [4, 4, 64]
 
