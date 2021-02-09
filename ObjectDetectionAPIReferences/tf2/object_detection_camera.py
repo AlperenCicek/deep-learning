@@ -20,7 +20,7 @@ detection_model = model_builder.build(model_config=model_config, is_training=Fal
 
 # Restore checkpoint
 ckpt = tf.compat.v2.train.Checkpoint(model=detection_model)
-ckpt.restore(os.path.join("C:/Users/Alperen/Documents/Tensorflow/workspace/training_demo/exported-models/my_model/checkpoint", 'ckpt-0')).expect_partial()
+ckpt.restore(os.path.join("exported-models/my_model/checkpoint", 'ckpt-0')).expect_partial()
 
 @tf.function
 def detect_fn(image):
@@ -40,7 +40,7 @@ def detect_fn(image):
 # predicts `5`, we know that this corresponds to `airplane`.  Here we use internal utility
 # functions, but anything that returns a dictionary mapping integers to appropriate string labels
 # would be fine.
-category_index = label_map_util.create_category_index_from_labelmap("C:/Users/Alperen/Documents/Tensorflow/workspace/training_demo/annotations/label_map.pbtxt",
+category_index = label_map_util.create_category_index_from_labelmap("annotations/label_map.pbtxt",
                                                                     use_display_name=True)
 
 # %%
